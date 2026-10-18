@@ -1,0 +1,31 @@
+# Live paper trading on Binance public market data. No API keys, no real orders.
+# For latency work, run gateway and engine on the host with pinned cores (docs/linux-tuning.md);
+# containers are for convenience, not for numbers.
+services:
+  questdb:
+    image: questdb/questdb:8.2.1
+    ports: ["9000:9000", "9009:9009"] # web console, ILP
+    volumes: [qdb:/var/lib/questdb]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6382:6379"]
+
+  gateway:
+    build: ./gateway
+    command: ["-symbol", "BTCUSDT", "-tick", "0.01", "-lot", "0.00001",
+              "-socket", "/run/hft/gateway.sock", "-record", "/data/btcusdt.bin",
+              "-questdb", "questdb:9009", "-redis", "redis://redis:6379/0"]
+    volumes: [sock:/run/hft, ./data:/data]
+    depends_on: [questdb, redis]
+
+  engine:
+    build: { context: ., dockerfile: engine/Dockerfile }
+    command: ["--input", "unix:/run/hft/gateway.sock", "--model", "linear:/models/linear.txt",
+              "--config", "/etc/hft/engine.conf", "--fills", "/data/fills.csv", "--decisions", "/data/decisions.csv"]
+    volumes: [sock:/run/hft, ./data:/data, ./models:/models:ro]
+    depends_on: [gateway]
+
+volumes:
+  qdb:
+  sock:
