@@ -1,0 +1,9 @@
+build/
+build-*/
+data/
+models/
+reports/*.json
+reports/*.csv
+reports/backtest-equity.png
+__pycache__/
+.pytest_cache/
