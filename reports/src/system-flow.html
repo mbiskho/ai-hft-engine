@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HFT engine system flow</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --ink: #121826; --muted: #4b5563; --line: #e5e7eb;
+    --c1: #eef4ff; --c1b: #9db8f0; --c2: #effaf6; --c2b: #7fcdb4; --c3: #fff7ed; --c3b: #f0b27a;
+    --c4: #f5f0ff; --c4b: #b8a4ef; --ok: #ecfdf3; --okb: #6cc596; --arrow: #8a93a3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .page { width: 1600px; padding: 44px 48px 36px; }
+  h1 { margin: 0 0 6px; font-size: 32px; letter-spacing: -0.02em; }
+  .sub { margin: 0 0 26px; color: var(--muted); font-size: 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 20px; margin-bottom: 18px; }
+  .label { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: #374151; text-transform: uppercase; margin-bottom: 14px; }
+  .label .note { letter-spacing: 0; text-transform: none; font-weight: 600; color: #0f766e; font-size: 13px; }
+  .row { display: flex; align-items: stretch; }
+  .box { flex: 1; border: 1.5px solid; border-radius: 10px; padding: 12px 14px; min-height: 92px; }
+  .box h3 { margin: 0 0 4px; font-size: 15px; }
+  .box p { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .arrow { flex: 0 0 30px; display: grid; place-items: center; color: var(--arrow); font-size: 18px; }
+  code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f1f3f6; padding: 1px 4px; border-radius: 4px; }
+  .b1 { background: var(--c1); border-color: var(--c1b); } .b2 { background: var(--c2); border-color: var(--c2b); }
+  .b3 { background: var(--c3); border-color: var(--c3b); } .b4 { background: var(--c4); border-color: var(--c4b); }
+  .ok { background: var(--ok); border-color: var(--okb); }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  .lane { border: 1.5px dashed #cfd5de; border-radius: 10px; padding: 12px 14px; }
+  .lane h4 { margin: 0 0 8px; font-size: 13px; }
+  .lane .row .box { min-height: 74px; }
+  .frames { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .frame { border: 1.5px dashed #cfd5de; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); }
+  .frame b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
+  .legend { display: flex; gap: 22px; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .legend span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1.5px solid; margin-right: 6px; vertical-align: -1px; }
+  .l1::before { background: var(--c1); border-color: var(--c1b) !important; } .l2::before { background: var(--c2); border-color: var(--c2b) !important; }
+  .l3::before { background: var(--c3); border-color: var(--c3b) !important; } .l4::before { background: var(--c4); border-color: var(--c4b) !important; }
+  .threads { display: grid; grid-template-columns: 1fr 3.6fr 1fr; gap: 12px; }
+  .thread { border: 1.5px dashed #cfd5de; border-radius: 10px; padding: 10px 12px 12px; }
+  .thread .tl { font: 700 11.5px ui-monospace, Menlo, monospace; color: #0f766e; margin-bottom: 8px; }
+  .ring { display: flex; align-items: center; justify-content: center; font: 600 11.5px ui-monospace, Menlo, monospace; color: #6b21a8; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>AI HFT Execution Engine: system flow</h1>
+  <p class="sub">Go normalises exchange data into 64-byte events. C++ runs book → features → model → risk → execution on one pinned thread with nothing allocated. Python trains the model the engine runs.</p>
+
+  <section>
+    <div class="label">1 · Market data gateway (Go) <span class="note">exchange decimals → integer ticks and lots, never via float</span></div>
+    <div class="row">
+      <div class="box b1"><h3>Binance WebSocket</h3><p><code>depth@100ms</code> diffs + <code>trade</code>, public data, no keys</p></div>
+      <div class="arrow">→</div>
+      <div class="box b1"><h3>Depth sync</h3><p>REST snapshot + <code>U/u</code> sequencing; any gap → resnapshot, next event flagged <code>GAP</code></p></div>
+      <div class="arrow">→</div>
+      <div class="box b1"><h3>Normalise</h3><p><code>"65432.10"</code> → 6543210 ticks exactly; one cache-line event per level / trade</p></div>
+      <div class="arrow">→</div>
+      <div class="box b1" style="flex:1.3"><h3>Fan out</h3><p>Unix socket → engine (batched writes) · recorder <code>.bin</code> for replay · QuestDB ILP (dropped if slow, never blocks)</p></div>
+      <div class="arrow">→</div>
+      <div class="box b4"><h3>Kill switch</h3><p><code>PUBLISH hft:control kill</code> → <code>KillSwitch</code> event inside the same stream</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">2 · Engine (C++20): three pinned threads, two lock-free SPSC rings <span class="note">every piece of mutable state has exactly one owning thread</span></div>
+    <div class="threads">
+      <div class="thread"><div class="tl">core 2 · feed</div>
+        <div class="box b2" style="min-height:0"><h3>read()</h3><p>socket or recording; 4 KiB-event batches; replay re-stamps with the local clock</p></div></div>
+      <div class="thread"><div class="tl">core 3 · engine: the hot path, no allocation, no locks, no syscalls</div>
+        <div class="row">
+          <div class="box b2"><h3>L2 book</h3><p>sorted fixed arrays, 64 levels; crossed → invalid</p></div>
+          <div class="arrow">→</div>
+          <div class="box b2"><h3>Features</h3><p>8 floats: spread, imbalance ×2, microprice, returns ×2, trade flow, depth</p></div>
+          <div class="arrow">→</div>
+          <div class="box b2"><h3>Model</h3><p>ONNX INT8 MLP, tensors pre-bound · or linear fallback</p></div>
+          <div class="arrow">→</div>
+          <div class="box b3"><h3>Risk</h3><p>kill · book · size · position · notional · collar · rate</p></div>
+          <div class="arrow">→</div>
+          <div class="box b3"><h3>Paper fill</h3><p>IOC arrives +250 µs, walks levels to limit, fees</p></div>
+        </div></div>
+      <div class="thread"><div class="tl">core 4 · writer</div>
+        <div class="box b2" style="min-height:0"><h3>CSV out</h3><p>fills, decisions, rejects; full ring drops a log line, never blocks trading</p></div></div>
+    </div>
+    <div class="frames" style="grid-template-columns: 1fr 1fr 1fr">
+      <div class="frame"><b>ring A</b> · 65,536 × 64 B MarketEvent · feed spins if full: market data is never dropped</div>
+      <div class="frame"><b>ring B</b> · 16,384 × 64 B OutRecord · engine never waits on I/O</div>
+      <div class="frame"><b>measured</b> · compute = features+model+risk · signal = ring entry → decision</div>
+    </div>
+  </section>
+
+  <div class="split">
+    <section style="margin:0">
+      <div class="label">3 · Research loop (Python) <span class="note">chronological split, never shuffled across time</span></div>
+      <div class="row">
+        <div class="box b4"><h3>Data</h3><p>gateway recordings, or the synthetic market with a planted signal</p></div>
+        <div class="arrow">→</div>
+        <div class="box b4"><h3>Train</h3><p>same features in Python → MLP, normalisation inside the graph</p></div>
+        <div class="arrow">→</div>
+        <div class="box b4"><h3>ONNX → INT8</h3><p>accepted only if drift ≤ 0.02 vs FP32</p></div>
+      </div>
+    </section>
+    <section style="margin:0">
+      <div class="label">4 · Contracts tested in both languages <span class="note">drift here = training on features the engine never computes</span></div>
+      <div class="row">
+        <div class="box ok"><h3>event_format.md</h3><p>64-byte layout: C++ <code>static_assert</code>, Go offset test, numpy dtype</p></div>
+        <div class="arrow">+</div>
+        <div class="box ok"><h3>feature_vectors.csv</h3><p>same book states, same expected features, asserted by C++ and pytest</p></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="legend" style="margin-top:18px">
+    <span class="l1">gateway</span><span class="l2">engine threads</span><span class="l3">risk + execution</span><span class="l4">control + research</span>
+  </div>
+</div>
+</body>
+</html>
