@@ -1,0 +1,6 @@
+# Book states and the features both implementations must produce (C++ engine/tests, Python research/tests).
+# Levels: price ticks and qty lots, best first. Return and trade-flow features need history, so they are 0 here.
+# case,bid_px,bid_qty,ask_px,ask_qty,spread_bps,imb1,imb5,micro_dev_bps,depth_ratio
+symmetric,10000;9999;9998;9997;9996,10;10;10;10;10,10001;10002;10003;10004;10005,10;10;10;10;10,0.999950002500,0.000000000000,0.000000000000,0.000000000000,0.000000000000
+bid_heavy,10000;9999;9998;9997;9996,30;20;10;10;10,10001;10002;10003;10004;10005,10;10;10;10;10,0.999950002500,0.500000000000,0.230769230769,0.249987500625,0.470003629246
+ask_heavy_wide,20000;19998,5;5,20004,15,1.999800019998,-0.500000000000,-0.200000000000,-0.499950005000,-0.405465108108
