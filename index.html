@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HFT Engine Report</title>
+<style>
+  :root { --bg: #0d1520; --card: #131f2e; --line: #22324a; --ink: #e8eef6; --muted: #93a3b8; --grid: #1c2a3c;
+          --green: #4fd1a5; --orange: #f2914a; --blue: #6aa8ff; --violet: #a993ff; --yellow: #f5c76a; --red: #f06b6b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 48px 24px 56px; }
+  h1 { margin: 0 0 8px; font-size: 38px; letter-spacing: -0.02em; }
+  .lede { margin: 0 0 10px; color: var(--muted); font-size: 17px; max-width: 920px; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: #0a111a; padding: 2px 6px; border-radius: 5px; color: #cdd6e3; }
+  .sample { display: inline-block; margin: 6px 0 26px; padding: 4px 10px; border: 1px solid #5b4a2a; border-radius: 999px; color: var(--yellow); background: #2a2214; font-size: 12.5px; font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 8px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .stat b { display: block; font-size: 28px; }
+  .stat span { color: var(--muted); font-size: 13.5px; }
+  .good { color: var(--green); }
+  h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 30px 0 12px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .cap { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+  svg text { fill: #7d8da3; font: 11px Inter, -apple-system, sans-serif; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 0 8px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid #1a2839; }
+  tr:last-child td { border-bottom: 0; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: #c6d1df; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: #123528; color: var(--green); }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+  .split { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin: 10px 0 4px; }
+  .foot { margin-top: 28px; color: #5f7088; font-size: 12.5px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI High-Frequency Trading Execution Engine</h1>
+  <p class="lede">Go market-data gateway, C++20 engine on three pinned threads with lock-free SPSC rings, quantized ONNX signal model, seven-check pre-trade risk and a latency-aware paper exchange. Produced by <code>make backtest</code>, <code>make bench</code> and <code>make quantize</code>.</p>
+  <span class="sample">Sample data: illustrative numbers, not from a recorded run</span>
+
+  <div class="stats">
+    <div class="stat"><b>1.9 M</b><span>events/s through the full pipeline</span></div>
+    <div class="stat"><b>4.1 µs</b><span>signal latency p99 (ring → decision)</span></div>
+    <div class="stat"><b>610 ns</b><span>features + INT8 model + risk, p50</span></div>
+    <div class="stat"><b class="good">0</b><span>position-limit breaches · TSan races</span></div>
+    <div class="stat"><b>+1.84 bps</b><span>net edge per fill after fees</span></div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h2>Latency distribution (log scale)</h2>
+      <div class="panel"><div id="lat"></div>
+        <div class="legend"><span><i style="background:var(--green)"></i>compute: features + model + risk</span><span><i style="background:var(--blue)"></i>signal: ring entry → decision</span><span><i style="background:var(--red);height:2px;vertical-align:4px"></i>1 ms target</span></div>
+        <div class="cap">2M replayed events, isolated cores 2-4, performance governor. The gap between the two curves is queueing in ring A during bursts.</div></div>
+    </div>
+    <div>
+      <h2>Backtest: PnL and position</h2>
+      <div class="panel"><div id="pnl"></div>
+        <div class="legend"><span><i style="background:var(--blue)"></i>PnL net of fees</span><span><i style="background:var(--violet)"></i>position</span><span><i style="background:var(--red);height:2px;vertical-align:4px"></i>±200 lot limit</span></div>
+        <div class="cap">Synthetic market with a planted imbalance signal, so positive edge is expected; the point is the plumbing, not alpha. The kill-switch drill at minute 41 flattens to zero.</div></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h2>Pre-trade risk rejections</h2>
+      <div class="panel"><div id="risk"></div>
+        <div class="cap">Of 48,210 strategy intents, 41,388 passed. Every rejection carries its reason; <code>position</code> dominates because the model keeps wanting more of a trend.</div></div>
+    </div>
+    <div>
+      <h2>Order book at decision #31,204</h2>
+      <div class="panel"><div id="book"></div>
+        <div class="cap">imb1 +0.43 · micro dev +0.21 bps · p_up 0.71 → buy 10 lots IOC at 65,432.12</div></div>
+    </div>
+  </div>
+
+  <h2>Model: FP32 vs INT8</h2>
+  <div class="panel">
+    <table><thead><tr><th>Model</th><th>Size</th><th>Inference p50</th><th>p99</th><th>Val AUC</th><th>Decision agreement</th><th>Max drift</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>logistic (fallback)</td><td class="mono">36 B</td><td class="mono">9 ns</td><td class="mono">14 ns</td><td class="mono">0.581</td><td class="mono">n/a</td><td class="mono">n/a</td><td></td></tr>
+      <tr><td>MLP FP32</td><td class="mono">3.4 KB</td><td class="mono">1.12 µs</td><td class="mono">1.9 µs</td><td class="mono">0.614</td><td class="mono">n/a</td><td class="mono">n/a</td><td></td></tr>
+      <tr><td>MLP INT8</td><td class="mono">1.6 KB</td><td class="mono">0.48 µs</td><td class="mono">0.9 µs</td><td class="mono">0.612</td><td class="mono">99.6%</td><td class="mono">0.009</td><td><span class="pill">deployed</span></td></tr>
+    </tbody></table>
+    <div class="cap">INT8 is accepted only if max |p_FP32 − p_INT8| ≤ 0.02 on held-out feature vectors; a faster model that signals differently is a different strategy.</div>
+  </div>
+
+  <p class="foot">Source: engine/ (C++20), gateway/ (Go), research/ (Python), docs/risk.md, docs/linux-tuning.md. The figures on this page are placeholders that show the report's shape. Replace them with <code>reports/*.json</code> from a real run.</p>
+</div>
+<script>
+const W = 560;
+(() => { // latency, log x
+  const h = 230, L = 40, R = 12, B = 24, top = 8;
+  const lx = ns => L + (Math.log10(ns) - 2) / (6 - 2) * (W - L - R);
+  const gauss = (mu, sig, k) => Array.from({ length: 80 }, (_, i) => { const lg = 2 + i * 4 / 79; const z = (lg - mu) / sig; return [10 ** lg, k * Math.exp(-0.5 * z * z) + (lg > mu ? 0.02 * k * Math.exp(-(lg - mu) * 2.2) : 0)]; });
+  const comp = gauss(Math.log10(610), 0.11, 1), sig = gauss(Math.log10(1700), 0.17, 0.72);
+  const y = v => top + (h - top - B) * (1 - v / 1.05);
+  let s = `<svg viewBox="0 0 ${W} ${h}" width="100%">`;
+  [100, 1e3, 1e4, 1e5, 1e6].forEach((v, i) => { s += `<line x1="${lx(v)}" x2="${lx(v)}" y1="${top}" y2="${h - B}" stroke="var(--grid)"/><text x="${lx(v)}" y="${h - 8}" text-anchor="middle">${["100 ns", "1 µs", "10 µs", "100 µs", "1 ms"][i]}</text>`; });
+  const path = (d, c) => `<path d="M${d.map(([x, v]) => `${lx(x)},${y(v)}`).join("L")}L${lx(d[d.length - 1][0])},${y(0)}L${lx(d[0][0])},${y(0)}Z" fill="${c}" opacity=".22"/><path d="M${d.map(([x, v]) => `${lx(x)},${y(v)}`).join("L")}" fill="none" stroke="${c}" stroke-width="2"/>`;
+  s += path(comp, "var(--green)") + path(sig, "var(--blue)");
+  s += `<line x1="${lx(1e6)}" x2="${lx(1e6)}" y1="${top}" y2="${h - B}" stroke="var(--red)" stroke-dasharray="6 4"/>`;
+  [["p50 610 ns", 610, "var(--green)", 30], ["p99 4.1 µs", 4100, "var(--blue)", 60]].forEach(([t, v, c, yy]) => { s += `<line x1="${lx(v)}" x2="${lx(v)}" y1="${top}" y2="${h - B}" stroke="${c}" stroke-dasharray="3 3"/><text x="${lx(v) + 5}" y="${yy}" style="fill:${c}">${t}</text>`; });
+  document.getElementById("lat").innerHTML = s + "</svg>";
+})();
+(() => { // pnl + position
+  const h = 230, L = 52, R = 40, B = 24, top = 8, N = 60;
+  const pnl = [], pos = [];
+  let p = 0, q = 0;
+  for (let i = 0; i <= N; i++) {
+    p += (i < 41 ? 1.15 : 0.1) * (Math.sin(i * 1.3) * 0.9 + 0.55) * 4200 + (i === 23 ? -9000 : 0);
+    q = i < 41 ? Math.round(150 * Math.sin(i / 4.2) + 30 * Math.sin(i * 1.7)) : Math.round(q * 0.35);
+    pnl.push(p); pos.push(Math.max(-200, Math.min(200, q)));
+  }
+  const x = i => L + i / N * (W - L - R), yP = v => top + (h - top - B) * (1 - v / 260000), yQ = v => top + (h - top - B) * (1 - (v + 250) / 500);
+  let s = `<svg viewBox="0 0 ${W} ${h}" width="100%">`;
+  for (let k = 0; k <= 4; k++) { const v = 260000 * k / 4, yy = yP(v); s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${(v / 1000).toFixed(0)}k</text><text x="${W - R + 6}" y="${yy + 4}">${(-250 + 125 * k).toFixed(0)}</text>`; }
+  for (let m = 0; m <= N; m += 10) s += `<text x="${x(m)}" y="${h - 8}" text-anchor="middle">${m}m</text>`;
+  [200, -200].forEach(v => { s += `<line x1="${L}" x2="${W - R}" y1="${yQ(v)}" y2="${yQ(v)}" stroke="var(--red)" stroke-dasharray="6 4" opacity=".8"/>`; });
+  s += `<path d="M${pos.map((v, i) => `${x(i)},${yQ(v)}`).join("L")}" fill="none" stroke="var(--violet)" stroke-width="1.5" opacity=".85"/>`;
+  s += `<path d="M${pnl.map((v, i) => `${x(i)},${yP(v)}`).join("L")}" fill="none" stroke="var(--blue)" stroke-width="2.5"/>`;
+  s += `<line x1="${x(41)}" x2="${x(41)}" y1="${top}" y2="${h - B}" stroke="var(--orange)" stroke-dasharray="3 3"/><text x="${x(41) + 5}" y="22" style="fill:var(--orange)">kill drill</text>`;
+  document.getElementById("pnl").innerHTML = s + "</svg>";
+})();
+(() => { // risk bars
+  const rows = [["position", 4980], ["rate_limit", 1012], ["collar", 488], ["book_invalid", 236], ["kill_switch", 74], ["notional", 22], ["order_size", 10]];
+  const h = 230, L = 96, R = 50, top = 10, rh = (h - top - 10) / rows.length, max = 5200;
+  let s = `<svg viewBox="0 0 ${W} ${h}" width="100%">`;
+  rows.forEach(([k, v], i) => { const y = top + i * rh + rh * .2, w = v / max * (W - L - R); s += `<text x="${L - 10}" y="${y + rh * .3 + 4}" text-anchor="end">${k}</text><rect x="${L}" y="${y}" width="${w}" height="${rh * .6}" rx="3" fill="var(--orange)"/><text x="${L + w + 6}" y="${y + rh * .3 + 4}" style="fill:#c6d1df">${v.toLocaleString()}</text>`; });
+  document.getElementById("risk").innerHTML = s + "</svg>";
+})();
+(() => { // book ladder
+  const asks = [[65432.16, 4.1], [65432.15, 2.7], [65432.14, 1.9], [65432.13, 0.8], [65432.12, 0.31]];
+  const bids = [[65432.11, 1.42], [65432.10, 2.2], [65432.09, 3.1], [65432.08, 2.4], [65432.07, 5.0]];
+  const h = 230, mid = W / 2, rh = (h - 20) / 10, max = 6.8;
+  let s = `<svg viewBox="0 0 ${W} ${h}" width="100%">`;
+  asks.forEach(([p, q], i) => { const y = 10 + i * rh, w = q / max * (mid - 70); s += `<rect x="${mid + 60}" y="${y + 2}" width="${w}" height="${rh - 4}" rx="2" fill="var(--red)" opacity=".75"/><text x="${mid}" y="${y + rh / 2 + 4}" text-anchor="middle" style="fill:var(--red)">${p.toFixed(2)}</text><text x="${mid + 66 + w}" y="${y + rh / 2 + 4}">${q.toFixed(2)}</text>`; });
+  bids.forEach(([p, q], i) => { const y = 10 + (i + 5) * rh, w = q / max * (mid - 70); s += `<rect x="${mid - 60 - w}" y="${y + 2}" width="${w}" height="${rh - 4}" rx="2" fill="var(--green)" opacity=".75"/><text x="${mid}" y="${y + rh / 2 + 4}" text-anchor="middle" style="fill:var(--green)">${p.toFixed(2)}</text><text x="${mid - 66 - w}" y="${y + rh / 2 + 4}" text-anchor="end">${q.toFixed(2)}</text>`; });
+  s += `<line x1="40" x2="${W - 40}" y1="${10 + 5 * rh}" y2="${10 + 5 * rh}" stroke="var(--muted)" stroke-dasharray="4 3"/>`;
+  document.getElementById("book").innerHTML = s + "</svg>";
+})();
+</script>
+</body>
+</html>
